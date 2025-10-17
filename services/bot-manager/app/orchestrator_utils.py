@@ -207,23 +207,21 @@ async def start_bot_container(
 
     logger.debug(f"Bot config: {bot_config_json}") # Log the full config
 
-    # Get the WhisperLive URL from bot-manager's own environment.
-    # This is set in docker-compose.yml to ws://whisperlive.internal/ws to go through Traefik.
-    whisper_live_url_for_bot = os.getenv('WHISPER_LIVE_URL')
-
-    if not whisper_live_url_for_bot:
-        # This should ideally not happen if docker-compose.yml is correctly configured.
-        logger.error("CRITICAL: WHISPER_LIVE_URL is not set in bot-manager's environment. Falling back to default, but this should be fixed in docker-compose.yml for bot-manager service.")
-        whisper_live_url_for_bot = 'ws://whisperlive.internal/ws' # Fallback, but log an error.
-
-    logger.info(f"Passing WHISPER_LIVE_URL to bot: {whisper_live_url_for_bot}")
-
-    # These are the environment variables passed to the Node.js process  of the vexa-bot started by your entrypoint.sh.
     environment = [
         f"BOT_CONFIG={bot_config_json}",
-        f"WHISPER_LIVE_URL={whisper_live_url_for_bot}", # Use the URL from bot-manager's env
         f"LOG_LEVEL={os.getenv('LOG_LEVEL', 'INFO').upper()}",
     ]
+
+    google_credentials_b64 = os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON_B64')
+    google_project = os.getenv('GOOGLE_CLOUD_PROJECT')
+
+    if google_credentials_b64:
+        environment.append(f"GOOGLE_APPLICATION_CREDENTIALS_JSON_B64={google_credentials_b64}")
+    else:
+        logger.warning("GOOGLE_APPLICATION_CREDENTIALS_JSON_B64 not set; Google STT will not authenticate.")
+
+    if google_project:
+        environment.append(f"GOOGLE_CLOUD_PROJECT={google_project}")
 
     # Ensure absolute path for URL encoding here as well
     socket_path_relative = DOCKER_HOST.split('//', 1)[1]

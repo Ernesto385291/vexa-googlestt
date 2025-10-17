@@ -209,10 +209,9 @@ export async function startTeamsRecording(page: Page, botConfig: BotConfig): Pro
             return true;
           },
           close(): void {},
-          connectToWhisperLive(botCfg: any) {
+          updateBridgeConfig(botCfg: any) {
             this.botConfigData = botCfg;
             (window as any).__vexaBotConfig = { ...botCfg };
-            return Promise.resolve(null);
           }
         };
 
@@ -223,14 +222,13 @@ export async function startTeamsRecording(page: Page, botConfig: BotConfig): Pro
           outputChannels: 1
         });
 
-        (window as any).__vexaWhisperLiveService = transcriptionBridge;
+        (window as any).__vexaTranscriptionService = transcriptionBridge;
         (window as any).triggerWebSocketReconfigure = async (lang: string | null, task: string | null) => {
           try {
             const cfg = (window as any).__vexaBotConfig || {};
             cfg.language = lang;
             cfg.task = task || 'transcribe';
-            transcriptionBridge.botConfigData = cfg;
-            (window as any).__vexaBotConfig = cfg;
+            transcriptionBridge.updateBridgeConfig(cfg);
             if (typeof updateTranscriptionConfig === 'function') {
               await updateTranscriptionConfig({ language: cfg.language, task: cfg.task });
               (window as any).logBot?.(`[Reconfigure] Applied: language=${cfg.language}, task=${cfg.task}`);

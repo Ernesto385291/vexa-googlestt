@@ -18,7 +18,7 @@ This document describes the system design and implementation of the platform‑a
   - Each platform exports a handler entrypoint (`googlemeet/index.ts`, `msteams/index.ts`) that wires strategies into `runMeetingFlow`
 - Browser‑side helpers (injected bundle): `browser-utils.global.js` (built into `dist/`)
   - `BrowserAudioService`: captures and mixes media stream(s)
-  - `BrowserWhisperLiveService`: WebSocket to WhisperLive with stubborn reconnection
+  - Helper utilities channel audio/speaker data to the Node-hosted Google Speech client
   - Exposes `window.performLeaveAction()` for platform‑specific leave UX
 
 ## Repository Structure (core)
@@ -59,7 +59,7 @@ core/
    - `waitForAdmission()` resolves admitted or returns structured timeouts/rejection
 4) Startup: `callStartupCallback()` once admitted
 5) Recording + Removal Race:
-   - `startRecording()` begins streaming audio and events to WhisperLive
+   - `startRecording()` streams audio and speaker events to the transcription service (Google Speech)
    - `startRemovalMonitor()` signals if the bot is removed; flow races and exits correctly
 6) Leave/Teardown: always call provided `gracefulLeaveFunction()` with reason
 
@@ -102,10 +102,11 @@ await runMeetingFlow("google_meet", botConfig, page, gracefulLeave, {
 });
 ```
 
-## WhisperLive Integration
-- Uses `BrowserWhisperLiveService` in the browser with NEVER‑GIVE‑UP reconnection (“stubborn mode”)
-- Sends initial config with platform, connectionId, meeting URL/ID
-- Gates audio until server signals ready; supports diagnostics logs
+## Google Speech Integration
+- `GoogleSpeechService` maintains a streaming connection to Google Cloud Speech-to-Text from the Node process
+- The injected browser helpers forward PCM audio chunks and speaker activity events through exposed bridge functions
+- Redis `reconfigure` commands update language/task on the fly by restarting the streaming recognizer when needed
+- Session start/end metadata is published alongside transcript segments so downstream services can persist meetings
 
 ## Removal Monitoring
 - In‑page heuristics (selectors/signals) in `recording.ts`
@@ -119,7 +120,7 @@ await runMeetingFlow("google_meet", botConfig, page, gracefulLeave, {
 
 ## Configuration (BotConfig)
 - Key fields: `platform`, `meetingUrl`, `botName`, `connectionId`, `redisUrl`, `automaticLeave` timeouts
-- Environment: `WHISPER_LIVE_URL`, `WL_MAX_CLIENTS`
+- Environment: `GOOGLE_APPLICATION_CREDENTIALS_JSON_B64`, `GOOGLE_CLOUD_PROJECT`, and optional `LOG_LEVEL`
 
 ## Development & Debugging
 
@@ -132,6 +133,7 @@ cd vexa/services/vexa-bot/core/src/platforms
 ```
 
 Notes:
+- Ensure `GOOGLE_APPLICATION_CREDENTIALS_JSON_B64` (and optionally `GOOGLE_CLOUD_PROJECT`) are exported before running the script
 - The script rebuilds `core/dist` automatically and runs the container with bind‑mounted `dist/`
 - Screenshots saved to `/home/dima/dev/bot-storage/screenshots/run-<timestamp>`
 - Sends a Redis leave command automatically to test graceful shutdown

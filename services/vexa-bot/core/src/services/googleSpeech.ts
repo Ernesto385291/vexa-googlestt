@@ -51,8 +51,6 @@ export class GoogleSpeechService implements TranscriptionService {
   private streamReady = false;
   private lastPublishedEndSeconds = 0;
 
-  private credentialsResolved = false;
-
   constructor(botConfig: BotConfig) {
     this.botConfig = botConfig;
     this.sessionUid = uuidv4();
@@ -244,16 +242,15 @@ export class GoogleSpeechService implements TranscriptionService {
     const credentials = this.resolveCredentialsFromEnv();
     if (credentials) {
       options.credentials = credentials;
-      this.credentialsResolved = true;
-      if (!options.projectId && credentials.projectId) {
-        options.projectId = credentials.projectId;
+      if (!options.projectId && credentials.project_id) {
+        options.projectId = credentials.project_id;
       }
     }
 
     return Object.keys(options).length ? options : undefined;
   }
 
-  private resolveCredentialsFromEnv(): (SpeechClientOptions["credentials"] & { projectId?: string }) | undefined {
+  private resolveCredentialsFromEnv(): GoogleCredentialsJSON | undefined {
     const b64 = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON_B64;
     const raw = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
     let parsed: GoogleCredentialsJSON | null = null;
@@ -277,7 +274,7 @@ export class GoogleSpeechService implements TranscriptionService {
       return {
         client_email: parsed.client_email,
         private_key: parsed.private_key,
-        projectId: parsed.project_id,
+        project_id: parsed.project_id,
       };
     }
 

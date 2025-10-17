@@ -10,6 +10,7 @@ setup-env: env submodules
     @echo "The 'env' target (now called by setup-env) handles .env creation/preservation:"
     @echo "  - If .env exists, it is preserved."
     @echo "  - If .env does not exist, it is created from env-example (or generated with defaults)."
+    @echo "  - Update GOOGLE_APPLICATION_CREDENTIALS_JSON_B64 in .env with your base64-encoded Google service account JSON."
     @echo "To force an overwrite of an existing .env file, use 'make force-env'."
 
 # Target to perform all initial setup steps
@@ -75,13 +76,14 @@ env-example-create:
     @echo "ADMIN_API_TOKEN=token" > env-example
     @echo "BOT_IMAGE_NAME=vexa-bot:dev" >> env-example
     @echo "DEVICE_TYPE=cpu" >> env-example
+    @echo "LOG_LEVEL=INFO" >> env-example
     @echo "GOOGLE_APPLICATION_CREDENTIALS_JSON_B64=" >> env-example
     @echo "GOOGLE_CLOUD_PROJECT=" >> env-example
     @echo "# Exposed Host Ports" >> env-example
-    @echo "API_GATEWAY_HOST_PORT=8056" >> env-example
-    @echo "ADMIN_API_HOST_PORT=8057" >> env-example
-    @echo "TRANSCRIPTION_COLLECTOR_HOST_PORT=8123" >> env-example
-    @echo "POSTGRES_HOST_PORT=5438" >> env-example
+    @echo "API_GATEWAY_HOST_PORT=18056" >> env-example
+    @echo "ADMIN_API_HOST_PORT=18057" >> env-example
+    @echo "TRANSCRIPTION_COLLECTOR_HOST_PORT=18123" >> env-example
+    @echo "POSTGRES_HOST_PORT=15438" >> env-example
 
 # Build the standalone vexa-bot image
 # Uses BOT_IMAGE_NAME from .env if available, otherwise falls back to default

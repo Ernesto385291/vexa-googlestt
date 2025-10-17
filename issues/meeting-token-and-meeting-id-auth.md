@@ -3,7 +3,7 @@ title: Replace user-token propagation and session UIDs with meeting-id + Meeting
 type: Architecture Decision
 status: Approved
 priority: High
-components: [bot-manager, vexa-bot, WhisperLive, transcription-collector]
+components: [bot-manager, vexa-bot, transcription service, transcription-collector]
 created: 2025-10-11
 related: [bot-reconfiguration-identity-mismatch.md]
 owners: [dgrankin]
@@ -23,7 +23,7 @@ version: 1.0
 ### Executive Summary
 
 - **Problem**:
-  - **Raw user token propagation**: user API tokens flow across services (vexa-bot → WhisperLive → transcription-collector).
+  - **Raw user token propagation**: user API tokens flow across services (vexa-bot → transcription service → transcription-collector).
   - **High DB load**: transcription-collector validates every message by hitting the database with provided tokens.
   - **Identity mismatch**: control-plane addresses bots via session UIDs while data-plane uses ephemeral WS UIDs. See `bot-reconfiguration-identity-mismatch.md`.
 - **Decision**:
@@ -99,8 +99,8 @@ Example claims:
   - Launch bot with `meeting_id`, `MeetingToken`, and metadata (platform, native_meeting_id, language, task).
 
 - **Transport**
-  - vexa-bot → WhisperLive (initial WS config): send `meeting_id` + `meeting_token`.
-  - WhisperLive treats token as opaque; forwards to Redis:
+  - vexa-bot → transcription service (initial WS config): send `meeting_id` + `meeting_token`.
+  - transcription service treats token as opaque; forwards to Redis:
     - session_start: include token (required to seed validation/cache).
     - transcription/speaker events: either include token each message (stateless) or send only `meeting_id` with per-message MAC derived from the token (stateful option, see below).
 
@@ -145,11 +145,11 @@ Example claims:
   - Remove `(platform,native_meeting_id) → current_uid` Redis mapping.
 
 - **vexa-bot**
-  - Send `meeting_id` + `meeting_token` in WhisperLive initial config.
+  - Send `meeting_id` + `meeting_token` in transcription service initial config.
   - Subscribe to `bot_commands:meeting:{meeting_id}`.
   - Validate `meeting_id` in command payloads before acting.
 
-- **WhisperLive**
+- **transcription service**
   - Treat token as opaque; forward it in `session_start` (and optionally per message for stateless mode).
   - Include `meeting_id` on all messages.
 

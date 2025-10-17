@@ -69,7 +69,7 @@ Adopt a single-cache, change-only publishing model with guaranteed absolute time
 
 ### Ingest (Mutable, Real-Time)
 
-1. WhisperLive → Redis Stream `transcription_segments`.
+1. transcription service → Redis Stream `transcription_segments`.
 2. Collector consumes and validates (future: via MeetingToken HS256 per related ADR).
 3. Resolve `meeting_id`, map speaker (from Redis ZSET of speaker events), resolve session start time from `meeting_session:{uid}:start`.
 4. Compute absolute times; normalize incoming vs existing segment.

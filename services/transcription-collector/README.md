@@ -1,13 +1,13 @@
 # Transcription Collector
 
-The Transcription Collector is a service that aggregates and deduplicates transcription segments from multiple WhisperLive servers, storing only meaningful, informative content in PostgreSQL.
+The Transcription Collector aggregates and deduplicates transcription segments produced by the speech-to-text pipeline (Google Speech), storing only meaningful, informative content in PostgreSQL.
 
 ## Architecture
 
-- **WebSocket Server**: Accepts connections from WhisperLive servers
-- **Redis**: Temporary storage and deduplication
+- **Redis Streams**: Temporary storage and ingestion point for live transcription and speaker events
 - **PostgreSQL**: Permanent storage for completed segments
 - **Filtering System**: Removes non-informative segments
+- **FastAPI Service**: Orchestrates background consumers and exposes health/stats endpoints
 
 ## Filtering System
 
@@ -86,7 +86,7 @@ CUSTOM_FILTERS.append(filter_out_short_words_only)
 
 - `GET /health`: Health check endpoint
 - `GET /stats`: Statistics about stored transcriptions
-- `WebSocket /collector`: WebSocket endpoint for WhisperLive servers
+- Background workers consume Redis streams; no external WebSocket endpoint is required
 
 ## Deployment
 
