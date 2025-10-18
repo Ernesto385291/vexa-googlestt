@@ -35,7 +35,7 @@ export class BrowserAudioService {
   }
 
   async findMediaElements(
-    retries: number = 5,
+    retries: number = 10,
     delay: number = 2000
   ): Promise<HTMLMediaElement[]> {
     for (let i = 0; i < retries; i++) {
@@ -47,34 +47,29 @@ export class BrowserAudioService {
       );
 
       const mediaElements = allMediaElements.filter((el: any) => {
-        const isNotPaused = !el.paused;
-        const hasMediaStream = el.srcObject instanceof MediaStream;
-        const hasAudioTracks =
-          hasMediaStream && el.srcObject.getAudioTracks().length > 0;
+        const hasDirectStream = el.srcObject instanceof MediaStream;
+        const canCapture = typeof el.captureStream === 'function' || typeof el.mozCaptureStream === 'function';
+        const hasAudioTracks = hasDirectStream && el.srcObject.getAudioTracks().length > 0;
 
         (window as any).logBot(
-          `[Audio] Element: paused=${
-            el.paused
-          }, hasStream=${hasMediaStream}, audioTracks=${
-            hasMediaStream ? el.srcObject.getAudioTracks().length : 0
+          `[Audio] Element: paused=${el.paused}, hasStream=${hasDirectStream}, canCapture=${canCapture}, audioTracks=${
+            hasDirectStream ? el.srcObject.getAudioTracks().length : 0
           }`
         );
 
-        return isNotPaused && hasMediaStream && hasAudioTracks;
+        // Consider elements that already have a MediaStream with audio tracks, OR
+        // elements we can capture from (video elements) even if currently paused.
+        return (hasDirectStream && hasAudioTracks) || canCapture;
       });
 
       if (mediaElements.length > 0) {
         (window as any).logBot(
-          `✅ Found ${
-            mediaElements.length
-          } active media elements with audio tracks after ${i + 1} attempt(s).`
+          `✅ Found ${mediaElements.length} media element(s) eligible for audio capture after ${i + 1} attempt(s).`
         );
         return mediaElements;
       }
       (window as any).logBot(
-        `❌ No active media elements found. Retrying in ${delay}ms... (Attempt ${
-          i + 2
-        }/${retries})`
+        `❌ No eligible media elements found. Retrying in ${delay}ms... (Attempt ${i + 2}/${retries})`
       );
       await new Promise((resolve) => setTimeout(resolve, delay));
     }

@@ -465,6 +465,12 @@ export class GoogleSpeechService implements TranscriptionService {
 
     this.lastPublishedEndSeconds = Math.max(this.lastPublishedEndSeconds, endSeconds);
 
+    // Debug: log recognized text (truncated) to help diagnose missing transcripts
+    try {
+      const preview = transcript.length > 120 ? transcript.slice(0, 117) + "..." : transcript;
+      log(`[GoogleSpeechService] Final recognized text (${this.language}): "${preview}" [${startSeconds.toFixed(2)}-${endSeconds.toFixed(2)}]`);
+    } catch {}
+
     await this.publishTranscriptionSegments(segments);
   }
 
