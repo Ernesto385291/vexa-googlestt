@@ -41,9 +41,6 @@ DOCKER_HOST = os.environ.get("DOCKER_HOST", "unix://var/run/docker.sock")
 DOCKER_NETWORK = os.environ.get("DOCKER_NETWORK", "vexa_default")
 BOT_IMAGE_NAME = os.environ.get("BOT_IMAGE_NAME", "vexa-bot:dev")
 
-# For example, use 'cuda' for NVIDIA GPUs or 'cpu' for CPU
-DEVICE_TYPE = os.environ.get("DEVICE_TYPE", "cuda").lower()
-
 logger = logging.getLogger("bot_manager.orchestrator_utils")
 
 # Global session for requests_unixsocket
