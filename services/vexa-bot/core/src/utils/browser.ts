@@ -34,32 +34,63 @@ export class BrowserAudioService {
     this.config = config;
   }
 
-  async findMediaElements(retries: number = 5, delay: number = 2000): Promise<HTMLMediaElement[]> {
+  async findMediaElements(
+    retries: number = 5,
+    delay: number = 2000
+  ): Promise<HTMLMediaElement[]> {
     for (let i = 0; i < retries; i++) {
-      const mediaElements = Array.from(
+      const allMediaElements = Array.from(
         document.querySelectorAll("audio, video")
-      ).filter((el: any) => 
-        !el.paused && 
-        el.srcObject instanceof MediaStream && 
-        el.srcObject.getAudioTracks().length > 0
       ) as HTMLMediaElement[];
+      (window as any).logBot(
+        `[Audio] Found ${allMediaElements.length} total media elements on page`
+      );
+
+      const mediaElements = allMediaElements.filter((el: any) => {
+        const isNotPaused = !el.paused;
+        const hasMediaStream = el.srcObject instanceof MediaStream;
+        const hasAudioTracks =
+          hasMediaStream && el.srcObject.getAudioTracks().length > 0;
+
+        (window as any).logBot(
+          `[Audio] Element: paused=${
+            el.paused
+          }, hasStream=${hasMediaStream}, audioTracks=${
+            hasMediaStream ? el.srcObject.getAudioTracks().length : 0
+          }`
+        );
+
+        return isNotPaused && hasMediaStream && hasAudioTracks;
+      });
 
       if (mediaElements.length > 0) {
-        (window as any).logBot(`Found ${mediaElements.length} active media elements with audio tracks after ${i + 1} attempt(s).`);
+        (window as any).logBot(
+          `✅ Found ${
+            mediaElements.length
+          } active media elements with audio tracks after ${i + 1} attempt(s).`
+        );
         return mediaElements;
       }
-      (window as any).logBot(`[Audio] No active media elements found. Retrying in ${delay}ms... (Attempt ${i + 2}/${retries})`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      (window as any).logBot(
+        `❌ No active media elements found. Retrying in ${delay}ms... (Attempt ${
+          i + 2
+        }/${retries})`
+      );
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
     return [];
   }
 
-  async createCombinedAudioStream(mediaElements: HTMLMediaElement[]): Promise<MediaStream> {
+  async createCombinedAudioStream(
+    mediaElements: HTMLMediaElement[]
+  ): Promise<MediaStream> {
     if (mediaElements.length === 0) {
       throw new Error("No media elements provided for audio stream creation");
     }
 
-    (window as any).logBot(`Found ${mediaElements.length} active media elements.`);
+    (window as any).logBot(
+      `Found ${mediaElements.length} active media elements.`
+    );
     if (!this.audioContext) {
       this.audioContext = new AudioContext();
     }
@@ -86,20 +117,28 @@ export class BrowserAudioService {
         // Debug audio tracks and unmute them
         if (elementStream instanceof MediaStream) {
           const audioTracks = elementStream.getAudioTracks();
-          (window as any).logBot(`Element ${index + 1}: Found ${audioTracks.length} audio tracks`);
+          (window as any).logBot(
+            `Element ${index + 1}: Found ${audioTracks.length} audio tracks`
+          );
           audioTracks.forEach((track, trackIndex) => {
-            (window as any).logBot(`  Track ${trackIndex}: enabled=${track.enabled}, muted=${track.muted}, label=${track.label}`);
-            
+            (window as any).logBot(
+              `  Track ${trackIndex}: enabled=${track.enabled}, muted=${track.muted}, label=${track.label}`
+            );
+
             // Unmute muted audio tracks
             if (track.muted) {
               track.enabled = true;
               // Force unmute by setting muted to false
               try {
                 (track as any).muted = false;
-                (window as any).logBot(`  Unmuted track ${trackIndex} (enabled=${track.enabled}, muted=${track.muted})`);
+                (window as any).logBot(
+                  `  Unmuted track ${trackIndex} (enabled=${track.enabled}, muted=${track.muted})`
+                );
               } catch (e: unknown) {
                 const message = e instanceof Error ? e.message : String(e);
-                (window as any).logBot(`  Could not unmute track ${trackIndex}: ${message}`);
+                (window as any).logBot(
+                  `  Could not unmute track ${trackIndex}: ${message}`
+                );
               }
             }
           });
@@ -110,23 +149,36 @@ export class BrowserAudioService {
           elementStream.getAudioTracks().length > 0
         ) {
           // Connect regardless of the read-only muted flag; WebAudio can still pull samples
-          const sourceNode = this.audioContext!.createMediaStreamSource(elementStream);
+          const sourceNode =
+            this.audioContext!.createMediaStreamSource(elementStream);
           sourceNode.connect(this.destinationNode!);
           sourcesConnected++;
-          (window as any).logBot(`Connected audio stream from element ${index + 1}/${mediaElements.length}. Tracks=${elementStream.getAudioTracks().length}`);
+          (window as any).logBot(
+            `Connected audio stream from element ${index + 1}/${
+              mediaElements.length
+            }. Tracks=${elementStream.getAudioTracks().length}`
+          );
         } else {
-          (window as any).logBot(`Skipping element ${index + 1}: No audio tracks found`);
+          (window as any).logBot(
+            `Skipping element ${index + 1}: No audio tracks found`
+          );
         }
       } catch (error: any) {
-        (window as any).logBot(`Could not connect element ${index + 1}: ${error.message}`);
+        (window as any).logBot(
+          `Could not connect element ${index + 1}: ${error.message}`
+        );
       }
     });
 
     if (sourcesConnected === 0) {
-      throw new Error("Could not connect any audio streams. Check media permissions.");
+      throw new Error(
+        "Could not connect any audio streams. Check media permissions."
+      );
     }
 
-    (window as any).logBot(`Successfully combined ${sourcesConnected} audio streams.`);
+    (window as any).logBot(
+      `Successfully combined ${sourcesConnected} audio streams.`
+    );
     return this.destinationNode!.stream;
   }
 
@@ -139,7 +191,8 @@ export class BrowserAudioService {
       this.destinationNode = this.audioContext.createMediaStreamDestination();
     }
 
-    const mediaStream = this.audioContext.createMediaStreamSource(combinedStream);
+    const mediaStream =
+      this.audioContext.createMediaStreamSource(combinedStream);
     const recorder = this.audioContext.createScriptProcessor(
       this.config.bufferSize,
       this.config.inputChannels,
@@ -159,15 +212,22 @@ export class BrowserAudioService {
       recorder,
       mediaStream,
       gainNode,
-      sessionAudioStartTimeMs: null
+      sessionAudioStartTimeMs: null,
     };
 
-    try { await this.audioContext.resume(); } catch {}
+    try {
+      await this.audioContext.resume();
+    } catch {}
     (window as any).logBot("Audio processing pipeline connected and ready.");
     return this.processor;
   }
 
-  setupAudioDataProcessor(onAudioData: (audioData: Float32Array, sessionStartTime: number | null) => void): void {
+  setupAudioDataProcessor(
+    onAudioData: (
+      audioData: Float32Array,
+      sessionStartTime: number | null
+    ) => void
+  ): void {
     if (!this.processor) {
       throw new Error("Audio processor not initialized");
     }
@@ -176,26 +236,36 @@ export class BrowserAudioService {
       // Set session start time on first audio chunk
       if (this.processor!.sessionAudioStartTimeMs === null) {
         this.processor!.sessionAudioStartTimeMs = Date.now();
-        (window as any).logBot(`[Audio] Session audio start time set: ${this.processor!.sessionAudioStartTimeMs}`);
+        (window as any).logBot(
+          `[Audio] Session audio start time set: ${
+            this.processor!.sessionAudioStartTimeMs
+          }`
+        );
       }
 
       const inputData = event.inputBuffer.getChannelData(0);
-      const resampledData = this.resampleAudioData(inputData, this.processor!.audioContext.sampleRate);
-      
+      const resampledData = this.resampleAudioData(
+        inputData,
+        this.processor!.audioContext.sampleRate
+      );
+
       onAudioData(resampledData, this.processor!.sessionAudioStartTimeMs);
     };
   }
 
-  private resampleAudioData(inputData: Float32Array, sourceSampleRate: number): Float32Array {
+  private resampleAudioData(
+    inputData: Float32Array,
+    sourceSampleRate: number
+  ): Float32Array {
     const targetLength = Math.round(
       inputData.length * (this.config.targetSampleRate / sourceSampleRate)
     );
     const resampledData = new Float32Array(targetLength);
     const springFactor = (inputData.length - 1) / (targetLength - 1);
-    
+
     resampledData[0] = inputData[0];
     resampledData[targetLength - 1] = inputData[inputData.length - 1];
-    
+
     for (let i = 1; i < targetLength - 1; i++) {
       const index = i * springFactor;
       const leftIndex = Math.floor(index);
@@ -205,7 +275,7 @@ export class BrowserAudioService {
         inputData[leftIndex] +
         (inputData[rightIndex] - inputData[leftIndex]) * fraction;
     }
-    
+
     return resampledData;
   }
 
@@ -222,11 +292,11 @@ export class BrowserAudioService {
         this.processor.audioContext.close();
         (window as any).logBot("Audio processing pipeline disconnected.");
       } catch (error: any) {
-        (window as any).logBot(`Error disconnecting audio pipeline: ${error.message}`);
+        (window as any).logBot(
+          `Error disconnecting audio pipeline: ${error.message}`
+        );
       }
       this.processor = null;
     }
   }
 }
-
-
