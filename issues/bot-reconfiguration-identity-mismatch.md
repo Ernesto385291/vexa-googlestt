@@ -65,21 +65,18 @@ window.triggerWebSocketReconfigure = async (lang, task) => {
   cfg.language = lang;
   cfg.task = task;
   
-  // Close to force reconnect
-  whisperLiveService.socket.close(1000, 'Reconfiguration requested');
+  // Update bridge configuration so the Node process restarts streaming with new parameters
+  transcriptionBridge.updateBridgeConfig(cfg);
 };
 
-// Browsertranscription serviceService (browser.ts)
-socket.onopen = (event) => {
-  this.currentUid = generateBrowserUUID();  // ← NEW UUID GENERATED
-  
-  const configPayload = {
-    uid: this.currentUid,                    // ← Fresh UID sent
+// Browser transcription bridge (browser.ts)
+transcriptionBridge.updateBridgeConfig = (config) => {
+  this.botConfigData = config;
+  const payload = {
     language: this.botConfigData.language,
     task: this.botConfigData.task,
-    // ...
   };
-  this.socket.send(JSON.stringify(configPayload));
+  updateTranscriptionConfig(payload);
 };
 ```
 
