@@ -32,7 +32,7 @@ from background.db_writer import process_redis_to_postgres
 
 app = FastAPI(
     title="Transcription Collector",
-    description="Collects and stores transcriptions from WhisperLive instances via Redis Streams."
+    description="Collects and stores transcriptions emitted by the speech-to-text pipeline via Redis Streams."
 )
 app.include_router(api_router)
 

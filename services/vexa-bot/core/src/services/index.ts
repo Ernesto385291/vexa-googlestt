@@ -1,2 +1,2 @@
-export { WhisperLiveService, type WhisperLiveConfig, type WhisperLiveConnection } from './whisperlive';
+export { GoogleSpeechService } from './googleSpeech';
 export { AudioService, type AudioProcessorConfig, type AudioProcessor } from './audio';

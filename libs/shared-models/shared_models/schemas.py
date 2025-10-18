@@ -8,9 +8,8 @@ import logging # Import logging for status validation warnings
 # Setup logger for status validation warnings
 logger = logging.getLogger(__name__)
 
-# --- Language Codes from faster-whisper ---
-# These are the accepted language codes from the faster-whisper library
-# Source: faster_whisper.tokenizer._LANGUAGE_CODES
+# --- Supported Language Codes ---
+# These language codes align with the transcription pipeline (Google Speech) and legacy Whisper support.
 ACCEPTED_LANGUAGE_CODES = {
     "af", "am", "ar", "as", "az", "ba", "be", "bg", "bn", "bo", "br", "bs", "ca", "cs", "cy", 
     "da", "de", "el", "en", "es", "et", "eu", "fa", "fi", "fo", "fr", "gl", "gu", "ha", "haw", 
@@ -22,7 +21,7 @@ ACCEPTED_LANGUAGE_CODES = {
 }
 
 # --- Allowed Tasks ---
-# These are the tasks supported by WhisperLive
+# Tasks accepted by the transcription pipeline ("translate" is currently treated as a request for transcription)
 ALLOWED_TASKS = {"transcribe", "translate"}
 
 # --- Meeting Status Definitions ---
@@ -457,7 +456,7 @@ class MeetingDataUpdate(BaseModel):
 
     @validator('languages')
     def validate_languages(cls, v):
-        """Validate that all language codes in the list are accepted faster-whisper codes."""
+        """Validate that all language codes in the list are accepted transcription language codes."""
         if v is not None:
             invalid_languages = [lang for lang in v if lang not in ACCEPTED_LANGUAGE_CODES]
             if invalid_languages:
@@ -476,7 +475,7 @@ class MeetingConfigUpdate(BaseModel):
 
     @validator('language')
     def validate_language(cls, v):
-        """Validate that the language code is one of the accepted faster-whisper codes."""
+        """Validate that the language code is one of the accepted transcription language codes."""
         if v is not None and v != "" and v not in ACCEPTED_LANGUAGE_CODES:
             raise ValueError(f"Invalid language code '{v}'. Must be one of: {sorted(ACCEPTED_LANGUAGE_CODES)}")
         return v
@@ -503,7 +502,7 @@ class TranscriptionSegment(BaseModel):
 
     @validator('language')
     def validate_language(cls, v):
-        """Validate that the language code is one of the accepted faster-whisper codes."""
+        """Validate that the language code is one of the accepted transcription language codes."""
         if v is not None and v != "" and v not in ACCEPTED_LANGUAGE_CODES:
             raise ValueError(f"Invalid language code '{v}'. Must be one of: {sorted(ACCEPTED_LANGUAGE_CODES)}")
         return v
@@ -512,19 +511,19 @@ class TranscriptionSegment(BaseModel):
         orm_mode = True
         allow_population_by_field_name = True # Allow using both alias and field name
 
-# --- WebSocket Schema (NEW - Represents data from WhisperLive) ---
+# --- Transcription Stream Schema (represents data emitted by the transcription pipeline) ---
 
-class WhisperLiveData(BaseModel):
-    """Schema for the data message sent by WhisperLive to the collector."""
-    uid: str # Unique identifier from the original client connection
+class TranscriptionStreamData(BaseModel):
+    """Schema for data messages emitted by the transcription pipeline."""
+    uid: str  # Unique identifier from the original client connection
     platform: Platform
     meeting_url: Optional[str] = None
-    token: str # User API token
-    meeting_id: str # Native Meeting ID (string, e.g., 'abc-xyz-pqr')
+    token: str  # User API token
+    meeting_id: str  # Native Meeting ID (string, e.g., 'abc-xyz-pqr')
     segments: List[TranscriptionSegment]
 
     @validator('platform', pre=True)
-    def validate_whisperlive_platform_str(cls, v):
+    def validate_transcription_platform_str(cls, v):
         """Validate that the platform string is one of the supported platforms"""
         try:
             Platform(v)

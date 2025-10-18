@@ -3,7 +3,7 @@ title: Bot Reconfiguration Identity Mismatch (Fix: Meeting-ID-Based Addressing)
 type: Architecture Decision
 status: Approved
 priority: High
-components: [bot-manager, vexa-bot, WhisperLive]
+components: [bot-manager, vexa-bot, transcription service]
 created: 2025-10-11
 related: [meeting-token-and-meeting-id-auth.md]
 owners: [dgrankin]
@@ -14,7 +14,7 @@ version: 1.0
 
 ## Executive Summary
 
-The bot reconfiguration system has an identity mismatch between the control plane (Redis commands) and data plane (WhisperLive sessions). Bot-manager addresses bots using ephemeral `connection_id` values, but the WebSocket layer generates fresh UUIDs on every reconnection, causing confusion and requiring unnecessary Redis mapping storage.
+The bot reconfiguration system has an identity mismatch between the control plane (Redis commands) and data plane (transcription service sessions). Bot-manager addresses bots using ephemeral `connection_id` values, but the WebSocket layer generates fresh UUIDs on every reconnection, causing confusion and requiring unnecessary Redis mapping storage.
 
 **Proposed Fix**: Use stable `meeting.id` (database primary key) as the addressing primitive for bot commands instead of ephemeral session UUIDs.
 
@@ -65,21 +65,18 @@ window.triggerWebSocketReconfigure = async (lang, task) => {
   cfg.language = lang;
   cfg.task = task;
   
-  // Close to force reconnect
-  whisperLiveService.socket.close(1000, 'Reconfiguration requested');
+  // Update bridge configuration so the Node process restarts streaming with new parameters
+  transcriptionBridge.updateBridgeConfig(cfg);
 };
 
-// BrowserWhisperLiveService (browser.ts)
-socket.onopen = (event) => {
-  this.currentUid = generateBrowserUUID();  // ← NEW UUID GENERATED
-  
-  const configPayload = {
-    uid: this.currentUid,                    // ← Fresh UID sent
+// Browser transcription bridge (browser.ts)
+transcriptionBridge.updateBridgeConfig = (config) => {
+  this.botConfigData = config;
+  const payload = {
     language: this.botConfigData.language,
     task: this.botConfigData.task,
-    // ...
   };
-  this.socket.send(JSON.stringify(configPayload));
+  updateTranscriptionConfig(payload);
 };
 ```
 
@@ -98,12 +95,12 @@ Bot Node.js:          connectionId = "abc-123-def" (stable)
                             ↓
 Browser WebSocket:    currentUid = "xyz-789-ghi" (regenerates on each reconnection!)
                             ↓
-WhisperLive server:   Sees NEW session every time
+transcription service server:   Sees NEW session every time
 ```
 
 ### Issues
 
-1. ❌ **Session Confusion**: WhisperLive thinks it's a new bot session on every reconnection
+1. ❌ **Session Confusion**: transcription service thinks it's a new bot session on every reconnection
 2. ❌ **Unnecessary Storage**: Redis mapping `bm:meeting:*:current_uid` adds complexity
 3. ❌ **Fragile Design**: Relies on ephemeral connection IDs that must be looked up
 4. ❌ **Semantic Mismatch**: "Control plane ID" vs "data plane UID" serve different purposes
@@ -413,7 +410,7 @@ After:  "Could not find meeting 12345"
 
 ## What Doesn't Change
 
-✅ WhisperLive may still generate internal UIDs on reconnection (implementation detail only)  
+✅ transcription service may still generate internal UIDs on reconnection (implementation detail only)  
 ✅ Core reconfiguration logic remains the same (close → stubborn reconnect → new config)  
 ✅ Meeting uniqueness constraint still enforced at database level
 
@@ -482,7 +479,7 @@ After:  "Could not find meeting 12345"
 
 **Cons:**
 - More complex browser state management
-- WhisperLive server needs to handle UID reuse (stale session cleanup)
+- transcription service server needs to handle UID reuse (stale session cleanup)
 - Doesn't solve the fundamental addressing problem
 - Still requires Redis mapping storage
 
@@ -505,7 +502,7 @@ After:  "Could not find meeting 12345"
 ### Low Risk ✅
 - Changes are isolated to bot-manager and vexa-bot
 - No database schema changes required
-- No changes to WhisperLive or transcription-collector
+- No changes to transcription service or transcription-collector
 - Can be tested thoroughly in staging
 - Rollback is straightforward (revert code)
 

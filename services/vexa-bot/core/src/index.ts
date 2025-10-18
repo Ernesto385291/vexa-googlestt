@@ -8,6 +8,7 @@ import { browserArgs, userAgent } from "./constans";
 import { BotConfig } from "./types";
 import { createClient, RedisClientType } from 'redis';
 import { Page, Browser } from 'playwright-core';
+import { getTranscriptionService, setTranscriptionService } from './services/transcription/registry';
 // HTTP imports removed - using unified callback service instead
 
 // Module-level variables to store current configuration
@@ -143,6 +144,17 @@ const handleRedisMessage = async (message: string, channel: string, page: Page |
           currentLanguage = command.language;
           currentTask = command.task;
 
+          const transcriptionService = getTranscriptionService();
+          if (transcriptionService) {
+            try {
+              await transcriptionService.updateConfig({ language: currentLanguage, task: currentTask });
+            } catch (error: any) {
+              log(`[Reconfigure] Failed to update transcription backend: ${error?.message || error}`);
+            }
+          } else {
+            log('[Reconfigure] No transcription service available to update.');
+          }
+
           // Trigger browser-side reconfiguration via the exposed function
           if (page && !page.isClosed()) { // Ensure page exists and is open
               try {
@@ -188,6 +200,14 @@ const handleRedisMessage = async (message: string, channel: string, page: Page |
         stopSignalReceived = true;
         // TODO: Implement leave logic (Phase 4)
         log("Received leave command");
+        const transcriptionService = getTranscriptionService();
+        if (transcriptionService) {
+          try {
+            await transcriptionService.handleSessionControl('LEAVING_MEETING');
+          } catch (error: any) {
+            log(`[LeaveCommand] Failed to notify transcription service: ${error?.message || error}`);
+          }
+        }
         if (!isShuttingDown && page && !page.isClosed()) { // Check flag and page state
           // A command-initiated leave is a successful completion, not an error.
           // Exit with code 0 to signal success to Nomad and prevent restarts.
@@ -277,6 +297,17 @@ async function performGracefulLeave(
     log("[Graceful Leave] Bot manager callback URL or Connection ID not configured. Cannot send exit status.");
   }
 
+  const transcriptionService = getTranscriptionService();
+  if (transcriptionService) {
+    try {
+      await transcriptionService.shutdown(reason);
+    } catch (error: any) {
+      log(`[Graceful Leave] Error shutting down transcription service: ${error?.message || error}`);
+    } finally {
+      setTranscriptionService(null);
+    }
+  }
+
   if (redisSubscriber && redisSubscriber.isOpen) {
     log("[Graceful Leave] Disconnecting Redis subscriber...");
     try {
@@ -335,12 +366,12 @@ export async function runBot(botConfig: BotConfig): Promise<void> {
   currentPlatform = botConfig.platform; // Set currentPlatform here
 
   // Destructure other needed config values
-  const { meetingUrl, platform, botName } = botConfig;
+  const { meetingUrl, platform, botName, meeting_id: meetingId } = botConfig;
 
-  log(`Starting bot for ${platform} with URL: ${meetingUrl}, name: ${botName}, language: ${currentLanguage}, task: ${currentTask}, connectionId: ${currentConnectionId}`);
+  log(`Starting bot for ${platform} with URL: ${meetingUrl}, name: ${botName}, language: ${currentLanguage}, task: ${currentTask}, meetingId: ${meetingId ?? 'n/a'}, connectionId: ${currentConnectionId}`);
 
   // --- ADDED: Redis Client Setup and Subscription ---
-  if (currentRedisUrl && currentConnectionId) {
+  if (currentRedisUrl && (meetingId !== undefined || currentConnectionId)) {
     log("Setting up Redis subscriber...");
     try {
       redisSubscriber = createClient({ url: currentRedisUrl });
@@ -356,9 +387,14 @@ export async function runBot(botConfig: BotConfig): Promise<void> {
       await redisSubscriber.connect();
       log(`Connected to Redis at ${currentRedisUrl}`);
 
-      const commandChannel = `bot_commands:${currentConnectionId}`;
-      // Pass the page object when subscribing
-      // ++ MODIFIED: Add logging inside subscribe callback ++
+      const commandChannel = meetingId !== undefined
+        ? `bot_commands:meeting:${meetingId}`
+        : `bot_commands:${currentConnectionId}`;
+
+      if (meetingId === undefined) {
+        log("[WARN] meeting_id not provided in bot config; falling back to connectionId-based command channel.");
+      }
+
       await redisSubscriber.subscribe(commandChannel, (message, channel) => {
           log(`[DEBUG] Redis subscribe callback fired for channel ${channel}.`); // Log before handling
           handleRedisMessage(message, channel, page)
@@ -373,7 +409,7 @@ export async function runBot(botConfig: BotConfig): Promise<void> {
       redisSubscriber = null; // Ensure client is null if setup failed
     }
   } else {
-    log("Redis URL or Connection ID missing, skipping Redis setup.");
+    log("Redis URL missing, or neither meeting_id nor connectionId provided. Skipping Redis setup.");
   }
   // -------------------------------------------------
 

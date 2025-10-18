@@ -48,9 +48,9 @@ Self-host with Docker Compose:
 ```bash
 git clone https://github.com/Vexa-ai/vexa.git
 cd vexa
-make all            # CPU by default (Whisper tiny) — good for development
-# For GPU:
-# make all TARGET=gpu    # (Whisper medium) — recommended for production quality
+make env                 # creates .env from env-example if it doesn't exist
+# edit .env and set GOOGLE_APPLICATION_CREDENTIALS_JSON_B64 (base64 of your service account JSON)
+make all
 ```
 
 * Full guide: [docs/deployment.md](docs/deployment.md)
@@ -130,8 +130,7 @@ The Vexa API provides powerful abstractions and a clear separation of concerns, 
 - [api-gateway](./services/api-gateway): Routes API requests to appropriate services
 - [mcp](./services/mcp): Provides MCP-capable agents with Vexa as a toolkit
 - [bot-manager](./services/bot-manager): Handles bot lifecycle management
-- [vexa-bot](./services/vexa-bot): The bot that joins meetings and captures audio
-- [WhisperLive](./services/WhisperLive): Real-time audio transcription service
+- [vexa-bot](./services/vexa-bot): The bot that joins meetings, captures audio, and streams it to Google Speech-to-Text
 - [transcription-collector](./services/transcription-collector): Processes and stores transcription segments
 - [Database models](./libs/shared-models/shared_models/models.py): Data structures for storing meeting information
 
@@ -139,16 +138,15 @@ The Vexa API provides powerful abstractions and a clear separation of concerns, 
 
 ### Features:
 
-- **Real-time multilingual transcription** supporting **100 languages** with **Whisper**
-- **Real-time translation** across all 100 supported languages
+- **Real-time transcription** powered by Google Speech-to-Text (language support depends on your Google Cloud project)
+- **Speaker activity streaming** for live diarization and downstream analytics
 
 ## Current Status
 
 - **Public API**: Fully available with self-service API keys at [www.vexa.ai](https://www.vexa.ai/?utm_source=github&utm_medium=readme&utm_campaign=vexa_repo)
 - **Google Meet Bot:** Fully operational bot for joining Google Meet calls
 - **Teams Bot:** Supported in v0.6
-- **Real-time Transcription:** Low-latency, multilingual transcription service is live
-- **Real-time Translation:** Instant translation between 100 supported languages
+- **Real-time Transcription:** Low-latency transcription pipeline is live
 - **WebSocket Streaming:** Sub-second transcript delivery via WebSocket API
 
 ## Coming Next
