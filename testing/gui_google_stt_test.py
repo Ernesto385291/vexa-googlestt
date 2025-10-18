@@ -138,12 +138,10 @@ class GoogleSTTGUI:
         # Language selection
         ttk.Label(lang_frame, text="Language:").grid(row=0, column=0, sticky=tk.W, padx=(0, 10))
         
-        self.language_var = tk.StringVar(value="es-SV")
+        self.language_var = tk.StringVar(value="es")
         language_combo = ttk.Combobox(lang_frame, textvariable=self.language_var, 
                                     values=[
-                                        "es-SV", "es-ES", "en-US", "fr-FR", "de-DE", "it-IT",
-                                        "pt-BR", "ja-JP", "ko-KR", "zh-CN", "zh-TW",
-                                        "ru-RU", "ar-SA", "hi-IN", "th-TH", "vi-VN"
+                                        "es", "en", "fr", "de", "it", "pt", "ja", "ko", "zh", "ru", "ar", "hi", "th", "vi"
                                     ], state="readonly", width=20)
         language_combo.grid(row=0, column=1, sticky=tk.W)
         

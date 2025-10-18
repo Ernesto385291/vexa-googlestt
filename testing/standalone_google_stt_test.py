@@ -152,16 +152,16 @@ def select_language() -> str:
     print_colored("\n🌍 Language Selection", Colors.HEADER)
     
     common_languages = {
-        "1": "es-SV",
-        "2": "es-ES", 
-        "3": "en-US",
-        "4": "fr-FR",
-        "5": "de-DE",
-        "6": "it-IT",
-        "7": "pt-BR",
-        "8": "ja-JP",
-        "9": "ko-KR",
-        "10": "zh-CN"
+        "1": "es",
+        "2": "en", 
+        "3": "fr",
+        "4": "de",
+        "5": "it",
+        "6": "pt",
+        "7": "ja",
+        "8": "ko",
+        "9": "zh",
+        "10": "ru"
     }
     
     print("Common languages:")
@@ -174,7 +174,7 @@ def select_language() -> str:
         return common_languages[choice]
     else:
         # Custom language code
-        return choice if choice else "es-SV"
+        return choice if choice else "es"
 
 
 def select_audio_input() -> str:

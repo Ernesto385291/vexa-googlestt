@@ -247,7 +247,7 @@ REQUEST_BOT_PAYLOAD=$(cat <<-END
   "platform": "$PLATFORM",
   "native_meeting_id": "$GOOGLE_MEET_ID",
   "bot_name": "$BOT_NAME",
-  "language": "es-SV"
+  "language": "es"
 }
 END
 )
