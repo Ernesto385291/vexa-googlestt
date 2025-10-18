@@ -61,7 +61,6 @@ services:
       - DB_USER=postgres
       - DB_PASSWORD=postgres
       - DOCKER_HOST=unix://var/run/docker.sock
-      - DEVICE_TYPE=${DEVICE_TYPE}
       - GOOGLE_APPLICATION_CREDENTIALS_JSON_B64=${GOOGLE_APPLICATION_CREDENTIALS_JSON_B64:-}
       - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-}
 
