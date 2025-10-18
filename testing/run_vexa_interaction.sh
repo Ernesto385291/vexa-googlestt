@@ -246,7 +246,8 @@ REQUEST_BOT_PAYLOAD=$(cat <<-END
 {
   "platform": "$PLATFORM",
   "native_meeting_id": "$GOOGLE_MEET_ID",
-  "bot_name": "$BOT_NAME"
+  "bot_name": "$BOT_NAME",
+  "language": "es-SV"
 }
 END
 )
@@ -282,6 +283,7 @@ fi
 echo_info "Bot '$BOT_NAME' has been requested for Google Meet ID: $GOOGLE_MEET_ID"
 echo_warn "Please admit the bot into your Google Meet session now."
 echo_warn "Real-time transcription will begin shortly."
+echo_info "🎤 Audio monitoring will show when speech is detected and processed."
 
 COUNTDOWN_SECONDS=10
 echo_info "Starting real-time transcription in:"
@@ -308,6 +310,7 @@ WS_URL="${BASE_URL/http/ws}/ws"
 
 echo_info "Using WebSocket URL: $WS_URL"
 echo_info "Running real-time transcription client..."
+echo_info "🔊 Audio activity will be logged below when speech is detected:"
 
 # Run the Python real-time transcription client in background
 # Use the virtual environment's Python to ensure websockets is available

@@ -341,15 +341,24 @@ async def run_websocket_validator(api_base: str, ws_url: str, api_key: str, plat
                         # Process transcript events: mutable (live updates) and finalized (completed segments)
                         if event_type in ("transcript.mutable", "transcript.finalized"):
                             segments = payload.get('segments', [])
+                            if segments:
+                                print(f"{Colors.CYAN}🎤 Audio received: {len(segments)} segment(s) processed{Colors.END}")
+                                for segment in segments:
+                                    text = segment.get('text', '').strip()
+                                    if text:
+                                        confidence = segment.get('confidence', 'N/A')
+                                        print(f"{Colors.BLUE}  📝 Text: '{text}' (confidence: {confidence}){Colors.END}")
                             renderer.upsert_segments(segments, event_type)
                         
                         elif event_type == "meeting.status":
                             status = payload.get('status', 'unknown')
+                            print(f"{Colors.YELLOW}📊 Meeting status update: {status}{Colors.END}")
                             renderer.set_status(status, meeting_label)
                         
                         elif event_type == "subscribed":
                             meetings = msg.get('meetings', [])
                             print(f"{Colors.GREEN}✓ Subscribed to meetings: {meetings}{Colors.END}")
+                            print(f"{Colors.GREEN}🎧 Audio monitoring active - listening for speech...{Colors.END}")
                         
                         elif event_type == "pong":
                             pass  # Silent
@@ -359,7 +368,7 @@ async def run_websocket_validator(api_base: str, ws_url: str, api_key: str, plat
                             print(f"{Colors.RED}✗ Error: {error}{Colors.END}")
                         
                         else:
-                            print(f"{Colors.YELLOW}Unknown event type: {event_type}{Colors.END}")
+                            print(f"{Colors.YELLOW}📡 Received event: {event_type}{Colors.END}")
                             if raw_mode:
                                 print(f"Raw payload: {json.dumps(payload, indent=2)}")
                     
