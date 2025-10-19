@@ -52,12 +52,13 @@ export class AudioService {
       );
 
       // Log details about each media element
-      allMediaElements.forEach((el, idx) => {
-        const hasSrcObject = el.srcObject instanceof MediaStream;
-        const audioTracks = hasSrcObject
-          ? el.srcObject.getAudioTracks().length
-          : 0;
-        const isPaused = el.paused;
+      allMediaElements.forEach((element, idx) => {
+        const el = element as HTMLMediaElement;
+        // srcObject is not part of the base Element type; cast defensively
+        const stream = (el as any).srcObject as MediaStream | undefined;
+        const hasSrcObject = stream instanceof MediaStream;
+        const audioTracks = hasSrcObject ? stream!.getAudioTracks().length : 0;
+        const isPaused = (el as HTMLMediaElement).paused;
         const tagName = el.tagName.toLowerCase();
         log(
           `[AudioService] Media element ${
