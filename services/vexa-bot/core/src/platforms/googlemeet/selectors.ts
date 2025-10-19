@@ -320,6 +320,9 @@ export const googleLeaveSelectors: string[] = [
 ];
 
 // Google Meet people/participant panel selectors
+// IMPORTANT: These selectors must be valid native CSS selectors because they are used inside
+// document.querySelector within page.evaluate. Do not use Playwright-only selectors like
+// :has-text() or non-standard pseudo-classes like :contains().
 export const googlePeopleButtonSelectors: string[] = [
   'button[aria-label^="People"]',
   'button[aria-label*="people"]',
@@ -331,15 +334,11 @@ export const googlePeopleButtonSelectors: string[] = [
   'button[aria-label*="view people"]',
   'button[aria-label*="Meeting participants"]',
   'button[aria-label*="meeting participants"]',
-  'button:has(span:contains("People"))',
-  'button:has(span:contains("people"))',
-  'button:has(span:contains("Participants"))',
-  'button:has(span:contains("participants"))',
-  'button[data-mdc-dialog-action]',
-  'button[data-tooltip*="people"]',
-  'button[data-tooltip*="People"]',
-  'button[data-tooltip*="participants"]',
-  'button[data-tooltip*="Participants"]'
+  // The following rely on accessible tooltips/labels which are stable across Meet UIs
+  '[data-tooltip*="people"]',
+  '[data-tooltip*="People"]',
+  '[data-tooltip*="participants"]',
+  '[data-tooltip*="Participants"]'
 ];
 
 
