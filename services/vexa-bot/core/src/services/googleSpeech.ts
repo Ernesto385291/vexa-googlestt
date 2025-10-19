@@ -9,15 +9,17 @@ import {
   AudioChunkPayload,
   SpeakerEventPayload,
   TranscriptionConfigUpdate,
-  TranscriptionService
+  TranscriptionService,
 } from "./transcription/types";
 
 const DEFAULT_SAMPLE_RATE = 16000;
 
 const { RecognitionConfig } = protos.google.cloud.speech.v1;
 
-type StreamingRecognizeResponse = protos.google.cloud.speech.v1.IStreamingRecognizeResponse;
-type StreamingRecognitionResult = protos.google.cloud.speech.v1.IStreamingRecognitionResult;
+type StreamingRecognizeResponse =
+  protos.google.cloud.speech.v1.IStreamingRecognizeResponse;
+type StreamingRecognitionResult =
+  protos.google.cloud.speech.v1.IStreamingRecognitionResult;
 type WordInfo = protos.google.cloud.speech.v1.IWordInfo;
 type Duration = protos.google.protobuf.IDuration;
 type SpeechClientOptions = ConstructorParameters<typeof SpeechClient>[0];
@@ -56,8 +58,10 @@ export class GoogleSpeechService implements TranscriptionService {
     this.sessionUid = uuidv4();
     this.language = this.normalizeLanguage(botConfig.language);
     this.task = botConfig.task || "transcribe";
-    this.transcriptionStreamName = process.env.REDIS_STREAM_NAME || "transcription_segments";
-    this.speakerEventsStreamName = process.env.REDIS_SPEAKER_EVENTS_STREAM_NAME || "speaker_events_relative";
+    this.transcriptionStreamName =
+      process.env.REDIS_STREAM_NAME || "transcription_segments";
+    this.speakerEventsStreamName =
+      process.env.REDIS_SPEAKER_EVENTS_STREAM_NAME || "speaker_events_relative";
   }
 
   async initialize(): Promise<void> {
@@ -70,7 +74,9 @@ export class GoogleSpeechService implements TranscriptionService {
   }
 
   async updateConfig(update: TranscriptionConfigUpdate): Promise<void> {
-    const nextLanguage = this.normalizeLanguage(update.language ?? this.language);
+    const nextLanguage = this.normalizeLanguage(
+      update.language ?? this.language
+    );
     const nextTask = update.task ? update.task : this.task;
 
     const languageChanged = nextLanguage !== this.language;
@@ -80,43 +86,90 @@ export class GoogleSpeechService implements TranscriptionService {
     this.task = nextTask;
 
     if ((languageChanged || taskChanged) && !this.shuttingDown) {
-      log(`[GoogleSpeechService] Updating configuration: language=${this.language}, task=${this.task}`);
+      log(
+        `[GoogleSpeechService] Updating configuration: language=${this.language}, task=${this.task}`
+      );
       await this.restartStream();
     }
   }
 
   async handleAudioChunk(chunk: AudioChunkPayload): Promise<void> {
     if (this.shuttingDown) {
+      log(
+        `[GoogleSpeechService] ⚠️ Ignoring audio chunk: service is shutting down`
+      );
       return;
     }
 
+    log(
+      `[GoogleSpeechService] 🎤 Received audio chunk: ${chunk.samples.length} samples @ ${chunk.sampleRate}Hz, sessionStartTime: ${chunk.sessionStartTime}`
+    );
+
     if (!this.redisClient) {
+      log(
+        `[GoogleSpeechService] 🔄 Initializing Redis client for audio chunk processing`
+      );
       await this.initializeRedisClient();
     }
 
     if (chunk.sampleRate !== this.streamSampleRate) {
+      log(
+        `[GoogleSpeechService] 🔄 Sample rate changed from ${this.streamSampleRate}Hz to ${chunk.sampleRate}Hz, restarting stream`
+      );
       this.streamSampleRate = chunk.sampleRate;
       await this.restartStream();
     }
 
     if (!this.speechClient || !this.recognizeStream || !this.streamReady) {
+      log(
+        `[GoogleSpeechService] 🔄 Ensuring STT stream is ready (client: ${!!this
+          .speechClient}, stream: ${!!this.recognizeStream}, ready: ${
+          this.streamReady
+        })`
+      );
       await this.ensureStream();
     }
 
     if (chunk.sessionStartTime !== null && this.sessionStartTimeMs === null) {
       this.sessionStartTimeMs = chunk.sessionStartTime;
+      log(
+        `[GoogleSpeechService] 🎯 Session start time set: ${
+          this.sessionStartTimeMs
+        } (${new Date(this.sessionStartTimeMs).toISOString()})`
+      );
       await this.publishSessionStart();
     }
 
     const buffer = this.convertFloat32ToLinear16(chunk.samples);
-    if (!buffer || !this.recognizeStream) {
+    if (!buffer) {
+      log(
+        `[GoogleSpeechService] ❌ Failed to convert audio samples to Linear16 buffer`
+      );
       return;
     }
 
+    if (!this.recognizeStream) {
+      log(
+        `[GoogleSpeechService] ❌ No recognition stream available to write audio chunk`
+      );
+      return;
+    }
+
+    log(
+      `[GoogleSpeechService] 📤 Sending ${buffer.length} bytes of Linear16 PCM audio to Google STT`
+    );
+
     try {
       this.recognizeStream.write({ audioContent: buffer });
+      log(
+        `[GoogleSpeechService] ✅ Audio chunk successfully sent to Google STT`
+      );
     } catch (error: any) {
-      log(`[GoogleSpeechService] Failed to write audio chunk: ${error?.message || error}`);
+      log(
+        `[GoogleSpeechService] ❌ Failed to write audio chunk: ${
+          error?.message || error
+        }`
+      );
       await this.restartStream();
     }
   }
@@ -136,7 +189,7 @@ export class GoogleSpeechService implements TranscriptionService {
       participant_name: event.participantName,
       participant_id_meet: event.participantId,
       relative_client_timestamp_ms: event.relativeTimestampMs,
-      server_received_timestamp_iso: new Date().toISOString()
+      server_received_timestamp_iso: new Date().toISOString(),
     } as Record<string, any>;
 
     try {
@@ -146,7 +199,11 @@ export class GoogleSpeechService implements TranscriptionService {
         this.stringifyValues(payload)
       );
     } catch (error: any) {
-      log(`[GoogleSpeechService] Failed to publish speaker event: ${error?.message || error}`);
+      log(
+        `[GoogleSpeechService] Failed to publish speaker event: ${
+          error?.message || error
+        }`
+      );
     }
   }
 
@@ -162,7 +219,11 @@ export class GoogleSpeechService implements TranscriptionService {
       return;
     }
     this.shuttingDown = true;
-    log(`[GoogleSpeechService] Shutting down transcription pipeline${reason ? ` (${reason})` : ""}`);
+    log(
+      `[GoogleSpeechService] Shutting down transcription pipeline${
+        reason ? ` (${reason})` : ""
+      }`
+    );
 
     await this.publishSessionEnd();
     this.closeRecognizeStream();
@@ -172,7 +233,11 @@ export class GoogleSpeechService implements TranscriptionService {
         await this.speechClient.close();
       }
     } catch (error: any) {
-      log(`[GoogleSpeechService] Error closing SpeechClient: ${error?.message || error}`);
+      log(
+        `[GoogleSpeechService] Error closing SpeechClient: ${
+          error?.message || error
+        }`
+      );
     } finally {
       this.speechClient = null;
     }
@@ -181,7 +246,11 @@ export class GoogleSpeechService implements TranscriptionService {
       try {
         await this.redisClient.quit();
       } catch (error: any) {
-        log(`[GoogleSpeechService] Error closing Redis client: ${error?.message || error}`);
+        log(
+          `[GoogleSpeechService] Error closing Redis client: ${
+            error?.message || error
+          }`
+        );
       } finally {
         this.redisClient = null;
       }
@@ -196,7 +265,9 @@ export class GoogleSpeechService implements TranscriptionService {
     }
 
     if (!this.botConfig.redisUrl) {
-      log("[GoogleSpeechService] Missing Redis URL in bot config; transcription will be disabled");
+      log(
+        "[GoogleSpeechService] Missing Redis URL in bot config; transcription will be disabled"
+      );
       return;
     }
 
@@ -207,9 +278,15 @@ export class GoogleSpeechService implements TranscriptionService {
 
     try {
       await this.redisClient.connect();
-      log("[GoogleSpeechService] Connected to Redis for transcription publishing");
+      log(
+        "[GoogleSpeechService] Connected to Redis for transcription publishing"
+      );
     } catch (error: any) {
-      log(`[GoogleSpeechService] Failed to connect to Redis: ${error?.message || error}`);
+      log(
+        `[GoogleSpeechService] Failed to connect to Redis: ${
+          error?.message || error
+        }`
+      );
       this.redisClient = null;
     }
   }
@@ -222,11 +299,17 @@ export class GoogleSpeechService implements TranscriptionService {
     const options = this.buildSpeechClientOptions();
 
     try {
-      this.speechClient = options ? new SpeechClient(options) : new SpeechClient();
+      this.speechClient = options
+        ? new SpeechClient(options)
+        : new SpeechClient();
       log("[GoogleSpeechService] Google Speech client initialized");
       await this.ensureStream();
     } catch (error: any) {
-      log(`[GoogleSpeechService] Failed to initialize Google Speech client: ${error?.message || error}`);
+      log(
+        `[GoogleSpeechService] Failed to initialize Google Speech client: ${
+          error?.message || error
+        }`
+      );
       this.speechClient = null;
     }
   }
@@ -234,7 +317,10 @@ export class GoogleSpeechService implements TranscriptionService {
   private buildSpeechClientOptions(): SpeechClientOptions | undefined {
     const options: SpeechClientOptions = {};
 
-    const explicitProjectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT_ID;
+    const explicitProjectId =
+      process.env.GOOGLE_CLOUD_PROJECT ||
+      process.env.GCLOUD_PROJECT ||
+      process.env.GCP_PROJECT_ID;
     if (explicitProjectId) {
       options.projectId = explicitProjectId;
     }
@@ -260,13 +346,21 @@ export class GoogleSpeechService implements TranscriptionService {
         const json = Buffer.from(b64, "base64").toString("utf8");
         parsed = JSON.parse(json);
       } catch (error: any) {
-        log(`[GoogleSpeechService] Failed to decode GOOGLE_APPLICATION_CREDENTIALS_JSON_B64: ${error?.message || error}`);
+        log(
+          `[GoogleSpeechService] Failed to decode GOOGLE_APPLICATION_CREDENTIALS_JSON_B64: ${
+            error?.message || error
+          }`
+        );
       }
     } else if (raw) {
       try {
         parsed = JSON.parse(raw);
       } catch (error: any) {
-        log(`[GoogleSpeechService] Failed to parse GOOGLE_APPLICATION_CREDENTIALS_JSON: ${error?.message || error}`);
+        log(
+          `[GoogleSpeechService] Failed to parse GOOGLE_APPLICATION_CREDENTIALS_JSON: ${
+            error?.message || error
+          }`
+        );
       }
     }
 
@@ -283,16 +377,26 @@ export class GoogleSpeechService implements TranscriptionService {
 
   private async ensureStream(): Promise<void> {
     if (this.shuttingDown) {
+      log(
+        `[GoogleSpeechService] ⚠️ Cannot ensure stream: service is shutting down`
+      );
       return;
     }
 
+    log(
+      `[GoogleSpeechService] 🔄 Ensuring STT stream is ready (language: ${this.language}, sampleRate: ${this.streamSampleRate}Hz, task: ${this.task})`
+    );
+
     if (!this.speechClient) {
+      log(`[GoogleSpeechService] 🔄 Initializing speech client`);
       await this.initializeSpeechClient();
       if (!this.speechClient) {
+        log(`[GoogleSpeechService] ❌ Failed to initialize speech client`);
         return;
       }
     }
 
+    log(`[GoogleSpeechService] 🔄 Closing any existing recognition stream`);
     this.closeRecognizeStream();
 
     try {
@@ -307,19 +411,38 @@ export class GoogleSpeechService implements TranscriptionService {
         interimResults: true,
       };
 
+      log(
+        `[GoogleSpeechService] 📡 Creating streaming recognition request: encoding=LINEAR16, sampleRate=${this.streamSampleRate}Hz, language=${this.language}, interimResults=true`
+      );
+
       if (this.task === "translate") {
         // Google Speech-to-Text does not support translation natively; log once.
-        log("[GoogleSpeechService] Task 'translate' requested, but Google STT only provides transcription. Proceeding with transcription.");
+        log(
+          "[GoogleSpeechService] ⚠️ Task 'translate' requested, but Google STT only provides transcription. Proceeding with transcription."
+        );
       }
 
-      this.recognizeStream = this.speechClient.streamingRecognize(request)
-        .on("data", (data: StreamingRecognizeResponse) => this.handleStreamingData(data))
+      log(
+        `[GoogleSpeechService] 🔌 Establishing streaming connection to Google STT`
+      );
+      this.recognizeStream = this.speechClient
+        .streamingRecognize(request)
+        .on("data", (data: StreamingRecognizeResponse) =>
+          this.handleStreamingData(data)
+        )
         .on("error", (err: Error) => this.handleStreamingError(err))
         .on("end", () => this.handleStreamingEnd());
 
       this.streamReady = true;
+      log(
+        `[GoogleSpeechService] ✅ Streaming recognition connection established successfully`
+      );
     } catch (error: any) {
-      log(`[GoogleSpeechService] Failed to establish streaming recognition: ${error?.message || error}`);
+      log(
+        `[GoogleSpeechService] ❌ Failed to establish streaming recognition: ${
+          error?.message || error
+        }`
+      );
       this.recognizeStream = null;
       this.streamReady = false;
     }
@@ -343,7 +466,11 @@ export class GoogleSpeechService implements TranscriptionService {
       this.recognizeStream.removeAllListeners();
       this.recognizeStream.end?.();
     } catch (error: any) {
-      log(`[GoogleSpeechService] Error while closing recognition stream: ${error?.message || error}`);
+      log(
+        `[GoogleSpeechService] Error while closing recognition stream: ${
+          error?.message || error
+        }`
+      );
     } finally {
       this.recognizeStream = null;
       this.streamReady = false;
@@ -366,15 +493,19 @@ export class GoogleSpeechService implements TranscriptionService {
     };
 
     try {
-      await this.redisClient.xAdd(
-        this.transcriptionStreamName,
-        "*",
-        { payload: JSON.stringify(payload) }
-      );
+      await this.redisClient.xAdd(this.transcriptionStreamName, "*", {
+        payload: JSON.stringify(payload),
+      });
       this.sessionStartPublished = true;
-      log(`[GoogleSpeechService] Session start published for ${this.sessionUid}`);
+      log(
+        `[GoogleSpeechService] Session start published for ${this.sessionUid}`
+      );
     } catch (error: any) {
-      log(`[GoogleSpeechService] Failed to publish session_start: ${error?.message || error}`);
+      log(
+        `[GoogleSpeechService] Failed to publish session_start: ${
+          error?.message || error
+        }`
+      );
     }
   }
 
@@ -393,38 +524,98 @@ export class GoogleSpeechService implements TranscriptionService {
     };
 
     try {
-      await this.redisClient.xAdd(
-        this.transcriptionStreamName,
-        "*",
-        { payload: JSON.stringify(payload) }
-      );
+      await this.redisClient.xAdd(this.transcriptionStreamName, "*", {
+        payload: JSON.stringify(payload),
+      });
       this.sessionEndPublished = true;
       log(`[GoogleSpeechService] Session end published for ${this.sessionUid}`);
     } catch (error: any) {
-      log(`[GoogleSpeechService] Failed to publish session_end: ${error?.message || error}`);
+      log(
+        `[GoogleSpeechService] Failed to publish session_end: ${
+          error?.message || error
+        }`
+      );
     }
   }
 
   private handleStreamingData(response: StreamingRecognizeResponse): void {
-    if (!response?.results || !this.redisClient) {
+    if (!response) {
+      log(
+        `[GoogleSpeechService] ⚠️ Received null/undefined streaming response`
+      );
       return;
     }
 
-    for (const result of response.results) {
+    if (!response.results) {
+      log(`[GoogleSpeechService] ⚠️ Streaming response has no results array`);
+      return;
+    }
+
+    if (!this.redisClient) {
+      log(
+        `[GoogleSpeechService] ⚠️ No Redis client available, cannot process streaming data`
+      );
+      return;
+    }
+
+    log(
+      `[GoogleSpeechService] 📥 Received streaming response with ${response.results.length} result(s)`
+    );
+
+    for (let i = 0; i < response.results.length; i++) {
+      const result = response.results[i];
+      const isFinal = result.isFinal;
+      const hasAlternatives =
+        result.alternatives && result.alternatives.length > 0;
+      const transcript = hasAlternatives
+        ? (result.alternatives[0].transcript || "").trim()
+        : "";
+
+      log(
+        `[GoogleSpeechService] 📝 Processing result ${i + 1}/${
+          response.results.length
+        }: final=${isFinal}, hasTranscript=${!!transcript}, length=${
+          transcript.length
+        }`
+      );
+
       this.processRecognitionResult(result);
     }
   }
 
-  private async processRecognitionResult(result: StreamingRecognitionResult | null | undefined): Promise<void> {
-    if (!result || !result.alternatives || !result.alternatives.length || !result.isFinal) {
+  private async processRecognitionResult(
+    result: StreamingRecognitionResult | null | undefined
+  ): Promise<void> {
+    if (!result) {
+      log(
+        `[GoogleSpeechService] ⚠️ Received null/undefined recognition result`
+      );
+      return;
+    }
+
+    if (!result.alternatives || !result.alternatives.length) {
+      log(`[GoogleSpeechService] ⚠️ Recognition result has no alternatives`);
+      return;
+    }
+
+    if (!result.isFinal) {
+      log(`[GoogleSpeechService] ⏳ Ignoring interim result (not final)`);
       return;
     }
 
     const alternative = result.alternatives[0];
     const transcript = (alternative.transcript || "").trim();
     if (!transcript) {
+      log(`[GoogleSpeechService] ⚠️ Final result has empty transcript`);
       return;
     }
+
+    log(
+      `[GoogleSpeechService] 🎯 Processing final recognition result with transcript: "${transcript.substring(
+        0,
+        100
+      )}${transcript.length > 100 ? "..." : ""}"`
+    );
 
     let startSeconds = this.lastPublishedEndSeconds;
     let endSeconds = this.lastPublishedEndSeconds;
@@ -435,6 +626,11 @@ export class GoogleSpeechService implements TranscriptionService {
       const lastWord = words[words.length - 1];
       const computedStart = this.durationToSeconds(firstWord?.startTime);
       const computedEnd = this.durationToSeconds(lastWord?.endTime);
+
+      log(
+        `[GoogleSpeechService] 📊 Word-level timing: ${words.length} words, start: ${computedStart}s, end: ${computedEnd}s`
+      );
+
       if (typeof computedStart === "number") {
         startSeconds = computedStart;
       }
@@ -443,14 +639,27 @@ export class GoogleSpeechService implements TranscriptionService {
       }
     } else if (result.resultEndTime) {
       const computedEnd = this.durationToSeconds(result.resultEndTime);
+      log(`[GoogleSpeechService] 📊 Result-level timing: end: ${computedEnd}s`);
       if (typeof computedEnd === "number") {
         endSeconds = computedEnd;
       }
+    } else {
+      log(`[GoogleSpeechService] ⚠️ No timing information available in result`);
     }
 
     if (endSeconds < startSeconds) {
+      log(
+        `[GoogleSpeechService] ⚠️ End time (${endSeconds}s) < start time (${startSeconds}s), adjusting end time`
+      );
       endSeconds = startSeconds;
     }
+
+    const confidence = alternative.confidence ?? undefined;
+    log(
+      `[GoogleSpeechService] 📈 Transcription confidence: ${
+        confidence ? confidence.toFixed(3) : "N/A"
+      }`
+    );
 
     const segments = [
       {
@@ -458,23 +667,37 @@ export class GoogleSpeechService implements TranscriptionService {
         start: startSeconds,
         end: endSeconds,
         completed: true,
-        confidence: alternative.confidence ?? undefined,
+        confidence: confidence,
         language: this.language,
       },
     ];
 
-    this.lastPublishedEndSeconds = Math.max(this.lastPublishedEndSeconds, endSeconds);
+    this.lastPublishedEndSeconds = Math.max(
+      this.lastPublishedEndSeconds,
+      endSeconds
+    );
 
     // Debug: log recognized text (truncated) to help diagnose missing transcripts
     try {
-      const preview = transcript.length > 120 ? transcript.slice(0, 117) + "..." : transcript;
-      log(`[GoogleSpeechService] Final recognized text (${this.language}): "${preview}" [${startSeconds.toFixed(2)}-${endSeconds.toFixed(2)}]`);
+      const preview =
+        transcript.length > 120 ? transcript.slice(0, 117) + "..." : transcript;
+      log(
+        `[GoogleSpeechService] ✅ Final recognized text (${
+          this.language
+        }): "${preview}" [${startSeconds.toFixed(2)}-${endSeconds.toFixed(2)}]`
+      );
     } catch {}
 
+    log(`[GoogleSpeechService] 📤 Publishing transcription segment to Redis`);
     await this.publishTranscriptionSegments(segments);
+    log(
+      `[GoogleSpeechService] ✅ Transcription segment published successfully`
+    );
   }
 
-  private async publishTranscriptionSegments(segments: Array<Record<string, any>>): Promise<void> {
+  private async publishTranscriptionSegments(
+    segments: Array<Record<string, any>>
+  ): Promise<void> {
     if (!this.redisClient || !segments.length) {
       return;
     }
@@ -489,13 +712,15 @@ export class GoogleSpeechService implements TranscriptionService {
     };
 
     try {
-      await this.redisClient.xAdd(
-        this.transcriptionStreamName,
-        "*",
-        { payload: JSON.stringify(payload) }
-      );
+      await this.redisClient.xAdd(this.transcriptionStreamName, "*", {
+        payload: JSON.stringify(payload),
+      });
     } catch (error: any) {
-      log(`[GoogleSpeechService] Failed to publish transcription segments: ${error?.message || error}`);
+      log(
+        `[GoogleSpeechService] Failed to publish transcription segments: ${
+          error?.message || error
+        }`
+      );
     }
   }
 
@@ -505,7 +730,11 @@ export class GoogleSpeechService implements TranscriptionService {
     }
     log(`[GoogleSpeechService] Streaming error: ${error.message}`);
     this.restartStream().catch((err) => {
-      log(`[GoogleSpeechService] Failed to restart stream after error: ${err?.message || err}`);
+      log(
+        `[GoogleSpeechService] Failed to restart stream after error: ${
+          err?.message || err
+        }`
+      );
     });
   }
 
@@ -515,7 +744,11 @@ export class GoogleSpeechService implements TranscriptionService {
     }
     log("[GoogleSpeechService] Streaming connection ended; restarting");
     this.restartStream().catch((err) => {
-      log(`[GoogleSpeechService] Failed to restart stream after end event: ${err?.message || err}`);
+      log(
+        `[GoogleSpeechService] Failed to restart stream after end event: ${
+          err?.message || err
+        }`
+      );
     });
   }
 
@@ -535,7 +768,9 @@ export class GoogleSpeechService implements TranscriptionService {
     return buffer;
   }
 
-  private durationToSeconds(duration: Duration | null | undefined): number | null {
+  private durationToSeconds(
+    duration: Duration | null | undefined
+  ): number | null {
     if (!duration) {
       return null;
     }
@@ -559,16 +794,19 @@ export class GoogleSpeechService implements TranscriptionService {
   }
 
   private stringifyValues(record: Record<string, any>): Record<string, string> {
-    return Object.entries(record).reduce<Record<string, string>>((acc, [key, value]) => {
-      if (value === undefined || value === null) {
+    return Object.entries(record).reduce<Record<string, string>>(
+      (acc, [key, value]) => {
+        if (value === undefined || value === null) {
+          return acc;
+        }
+        if (typeof value === "string") {
+          acc[key] = value;
+        } else {
+          acc[key] = String(value);
+        }
         return acc;
-      }
-      if (typeof value === "string") {
-        acc[key] = value;
-      } else {
-        acc[key] = String(value);
-      }
-      return acc;
-    }, {});
+      },
+      {}
+    );
   }
 }

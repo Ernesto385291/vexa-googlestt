@@ -118,18 +118,37 @@ export async function startGoogleRecording(
   page: Page,
   botConfig: BotConfig
 ): Promise<void> {
+  log(
+    `[GoogleRecording] 🎬 Starting Google Meet recording setup for meeting: ${botConfig.nativeMeetingId}`
+  );
+  log(
+    `[GoogleRecording] 📋 Bot config: language=${botConfig.language}, task=${botConfig.task}, platform=${botConfig.platform}`
+  );
+
   const speechService = new GoogleSpeechService(botConfig);
   let serviceRegistered = false;
 
   try {
+    log(`[GoogleRecording] 🔄 Initializing Google Speech service...`);
     await speechService.initialize();
+
+    log(
+      `[GoogleRecording] ⚙️ Updating speech service config: language=${botConfig.language}, task=${botConfig.task}`
+    );
     await speechService.updateConfig({
       language: botConfig.language,
       task: botConfig.task,
     });
+
+    log(
+      `[GoogleRecording] 📝 Registering speech service as active transcription service`
+    );
     setTranscriptionService(speechService);
     serviceRegistered = true;
 
+    log(
+      `[GoogleRecording] 🔗 Exposing vexaSendAudioChunk function to browser context`
+    );
     await page.exposeFunction(
       "vexaSendAudioChunk",
       async (payload: AudioChunkPayload) => {
@@ -137,6 +156,9 @@ export async function startGoogleRecording(
       }
     );
 
+    log(
+      `[GoogleRecording] 🔗 Exposing vexaSendSpeakerEvent function to browser context`
+    );
     await page.exposeFunction(
       "vexaSendSpeakerEvent",
       async (payload: SpeakerBridgePayload) => {
@@ -144,6 +166,9 @@ export async function startGoogleRecording(
       }
     );
 
+    log(
+      `[GoogleRecording] 🔗 Exposing vexaUpdateTranscriptionConfig function to browser context`
+    );
     await page.exposeFunction(
       "vexaUpdateTranscriptionConfig",
       async (payload: TranscriptionConfigPayload) => {
@@ -151,6 +176,9 @@ export async function startGoogleRecording(
       }
     );
 
+    log(
+      `[GoogleRecording] 🔗 Exposing vexaSignalSessionControl function to browser context`
+    );
     await page.exposeFunction(
       "vexaSignalSessionControl",
       async (payload: SessionControlPayload) => {
@@ -158,6 +186,7 @@ export async function startGoogleRecording(
       }
     );
 
+    log(`[GoogleRecording] 📦 Injecting browser utilities script`);
     await injectBrowserUtils(page);
 
     await page.evaluate(
@@ -236,6 +265,10 @@ export async function startGoogleRecording(
           }
         });
 
+        (window as any).logBot?.(
+          "[Browser] 🔄 Initializing BrowserAudioService with config: targetSampleRate=16000Hz, bufferSize=4096, channels=1"
+        );
+
         const audioService = new browserUtils.BrowserAudioService({
           targetSampleRate: 16000,
           bufferSize: 4096,
@@ -244,42 +277,55 @@ export async function startGoogleRecording(
         });
 
         (window as any).logBot?.(
-          "Starting Google Meet recording process with Google STT bridge."
+          "[Browser] 🎤 Starting Google Meet recording process with Google STT bridge."
+        );
+
+        (window as any).logBot?.(
+          "[Browser] 🔍 Searching for active media elements with audio streams..."
         );
 
         const mediaElements = await audioService.findMediaElements();
         if (mediaElements.length === 0) {
           (window as any).logBot?.(
-            "❌ [Google Meet BOT Error] No active media elements found after multiple retries."
+            "[Browser] ❌ [Google Meet BOT Error] No active media elements found after multiple retries."
           );
-          (window as any).logBot?.("🔧 Troubleshooting tips:");
+          (window as any).logBot?.("[Browser] 🔧 Troubleshooting tips:");
           (window as any).logBot?.(
-            "   1. Ensure someone is speaking in the meeting"
-          );
-          (window as any).logBot?.(
-            "   2. Check that audio is not muted for all participants"
+            "[Browser]    1. Ensure someone is speaking in the meeting"
           );
           (window as any).logBot?.(
-            "   3. Try unmuting your microphone briefly"
+            "[Browser]    2. Check that audio is not muted for all participants"
           );
           (window as any).logBot?.(
-            "   4. Wait for participants to join and start talking"
+            "[Browser]    3. Try unmuting your microphone briefly"
+          );
+          (window as any).logBot?.(
+            "[Browser]    4. Wait for participants to join and start talking"
           );
           throw new Error(
             "[Google Meet BOT Error] No active media elements found after multiple retries. Ensure the Google Meet meeting media is playing."
           );
         }
 
+        (window as any).logBot?.(
+          `[Browser] ✅ Found ${mediaElements.length} active media elements, creating combined audio stream...`
+        );
+
         const combinedStream = await audioService.createCombinedAudioStream(
           mediaElements
         );
+
+        (window as any).logBot?.(
+          "[Browser] 🔄 Initializing audio processing pipeline..."
+        );
+
         await audioService.initializeAudioProcessor(combinedStream);
 
         (window as any).logBot?.(
-          "✅ Audio processing initialized successfully"
+          "[Browser] ✅ Audio processing initialized successfully"
         );
         (window as any).logBot?.(
-          "🎤 Ready to capture audio - start speaking in the meeting!"
+          "[Browser] 🎤 Ready to capture audio - start speaking in the meeting!"
         );
 
         const sendAudioToHost = (
@@ -288,18 +334,35 @@ export async function startGoogleRecording(
         ) => {
           if (typeof sendAudioChunk !== "function") {
             (window as any).logBot?.(
-              "[Audio] Transcription bridge unavailable; dropping chunk."
+              "[Browser] ❌ [Audio] Transcription bridge unavailable; dropping chunk."
             );
             return;
           }
 
-          // Log audio activity (only occasionally to avoid spam)
-          if (Math.random() < 0.01) {
-            // Log 1% of audio chunks
+          // Calculate audio levels for this chunk
+          let maxAmplitude = 0;
+          let rmsAmplitude = 0;
+          for (let i = 0; i < audioData.length; i++) {
+            const sample = Math.abs(audioData[i]);
+            maxAmplitude = Math.max(maxAmplitude, sample);
+            rmsAmplitude += sample * sample;
+          }
+          rmsAmplitude = Math.sqrt(rmsAmplitude / audioData.length);
+
+          const chunkDuration = audioData.length / 16000;
+          const hasAudio = rmsAmplitude > 0.001; // Threshold for detecting audio
+
+          // Log audio activity (only occasionally to avoid spam, but more frequently for debugging)
+          if (Math.random() < 0.05) {
+            // Log 5% of audio chunks
             (window as any).logBot?.(
-              `🎤 Audio detected: ${audioData.length} samples, ${
-                audioData.length / 16000
-              }s`
+              `[Browser] 🎤 Audio chunk: ${
+                audioData.length
+              } samples (${chunkDuration.toFixed(
+                2
+              )}s), max=${maxAmplitude.toFixed(4)}, RMS=${rmsAmplitude.toFixed(
+                4
+              )}, hasAudio=${hasAudio}`
             );
           }
 
@@ -308,11 +371,24 @@ export async function startGoogleRecording(
             sampleRate: 16000,
             sessionStartTime,
           };
-          Promise.resolve(sendAudioChunk(payload)).catch((error: any) => {
-            (window as any).logBot?.(
-              `[Audio] Failed to send chunk: ${error?.message || error}`
-            );
-          });
+
+          (window as any).logBot?.(
+            `[Browser] 📤 Sending audio chunk to Node.js: ${audioData.length} samples, sessionTime=${sessionStartTime}`
+          );
+
+          Promise.resolve(sendAudioChunk(payload))
+            .then(() => {
+              (window as any).logBot?.(
+                `[Browser] ✅ Audio chunk sent successfully to Node.js`
+              );
+            })
+            .catch((error: any) => {
+              (window as any).logBot?.(
+                `[Browser] ❌ Failed to send audio chunk to Node.js: ${
+                  error?.message || error
+                }`
+              );
+            });
         };
 
         audioService.setupAudioDataProcessor(
@@ -610,28 +686,32 @@ export async function startGoogleRecording(
     );
 
     log(
-      "[Google Recording] Browser instrumentation complete; waiting for meeting to conclude."
+      "[GoogleRecording] ✅ Browser instrumentation complete; Google Meet recording is now active and waiting for meeting to conclude."
     );
     await new Promise<void>(() => {});
   } catch (error: any) {
     log(
-      `[Google Recording] Failed to initialize Google Meet recording: ${
+      `[GoogleRecording] ❌ Failed to initialize Google Meet recording: ${
         error?.message || error
       }`
     );
     throw error;
   } finally {
+    log(`[GoogleRecording] 🔄 Shutting down Google Meet recording services`);
     try {
       await speechService.shutdown("google_meet_recording_stopped");
+      log(`[GoogleRecording] ✅ Speech service shutdown complete`);
     } catch (error: any) {
       log(
-        `[Google Recording] Error during transcription shutdown: ${
+        `[GoogleRecording] ❌ Error during transcription shutdown: ${
           error?.message || error
         }`
       );
     }
     if (serviceRegistered) {
+      log(`[GoogleRecording] 🗑️ Unregistering transcription service`);
       setTranscriptionService(null);
     }
+    log(`[GoogleRecording] 🎬 Google Meet recording shutdown complete`);
   }
 }
