@@ -209,13 +209,17 @@ async def start_bot_container(
         f"LOG_LEVEL={os.getenv('LOG_LEVEL', 'INFO').upper()}",
     ]
 
+    # Support both Base64-encoded and raw JSON credentials env vars
     google_credentials_b64 = os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON_B64')
+    google_credentials_raw = os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON')
     google_project = os.getenv('GOOGLE_CLOUD_PROJECT')
 
     if google_credentials_b64:
         environment.append(f"GOOGLE_APPLICATION_CREDENTIALS_JSON_B64={google_credentials_b64}")
-    else:
-        logger.warning("GOOGLE_APPLICATION_CREDENTIALS_JSON_B64 not set; Google STT will not authenticate.")
+    if google_credentials_raw:
+        environment.append(f"GOOGLE_APPLICATION_CREDENTIALS_JSON={google_credentials_raw}")
+    if not google_credentials_b64 and not google_credentials_raw:
+        logger.warning("Neither GOOGLE_APPLICATION_CREDENTIALS_JSON_B64 nor GOOGLE_APPLICATION_CREDENTIALS_JSON set; Google STT will not authenticate.")
 
     if google_project:
         environment.append(f"GOOGLE_CLOUD_PROJECT={google_project}")

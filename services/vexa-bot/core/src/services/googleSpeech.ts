@@ -565,10 +565,10 @@ export class GoogleSpeechService implements TranscriptionService {
     for (let i = 0; i < response.results.length; i++) {
       const result = response.results[i];
       const isFinal = result.isFinal;
-      const hasAlternatives =
-        result.alternatives && result.alternatives.length > 0;
+      const alternatives = result.alternatives ?? [];
+      const hasAlternatives = alternatives.length > 0;
       const transcript = hasAlternatives
-        ? (result.alternatives[0].transcript || "").trim()
+        ? (alternatives[0]?.transcript || "").trim()
         : "";
 
       log(
