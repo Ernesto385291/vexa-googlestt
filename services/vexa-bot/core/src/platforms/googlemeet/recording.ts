@@ -655,9 +655,13 @@ export async function startGoogleRecording(
         const peopleButtonSelectors: string[] =
           selectorsTyped.peopleButtonSelectors || [];
         for (const buttonSelector of peopleButtonSelectors) {
-          const button = document.querySelector(
-            buttonSelector
-          ) as HTMLElement | null;
+          let button: HTMLElement | null = null;
+          try {
+            button = document.querySelector(buttonSelector) as HTMLElement | null;
+          } catch (_e) {
+            // Skip invalid CSS selectors to avoid crashing the evaluation context
+            continue;
+          }
           if (button) {
             button.addEventListener("click", () => {
               setTimeout(() => {

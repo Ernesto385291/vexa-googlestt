@@ -284,42 +284,40 @@ export const googleParticipantIdSelectors: string[] = [
 
 // Google Meet comprehensive leave selectors (stateless - covers all scenarios)
 export const googleLeaveSelectors: string[] = [
-  // WORKING SELECTORS FIRST - Google Meet primary leave button
-  'button[aria-label="Leave call"]', // ✅ Primary Google Meet leave button
-  
-  // Alternative leave patterns
+  // Primary Google Meet leave button
+  'button[aria-label="Leave call"]',
+
+  // Alternative leave patterns (native CSS only)
   'button[aria-label*="Leave"]',
   'button[aria-label*="leave"]',
   '[role="toolbar"] button[aria-label*="Leave"]',
-  
+
   // End meeting alternatives
   'button[aria-label*="End meeting"]',
-  'button:has-text("End meeting")',
+  'button[aria-label*="end meeting"]',
   'button[aria-label*="Hang up"]',
-  'button:has-text("Hang up")',
-  
-  // Confirmation dialog buttons (secondary)
-  'button:has-text("Leave meeting")',
-  'button:has-text("Just leave the meeting")',
-  'button:has-text("Leave")',
-  
-  // Dialog-specific patterns
-  '[role="dialog"] button:has-text("Leave")',
-  '[role="dialog"] button:has-text("End meeting")',
-  '[role="alertdialog"] button:has-text("Leave")',
-  
+  'button[aria-label*="hang up"]',
+
+  // Dialog-specific patterns using aria-labels (text-only matches are not valid CSS)
+  '[role="dialog"] button[aria-label*="Leave"]',
+  '[role="dialog"] button[aria-label*="End"]',
+  '[role="alertdialog"] button[aria-label*="Leave"]',
+
   // Generic close/cancel patterns
-  'button:has-text("Close")',
   'button[aria-label="Close"]',
-  'button:has-text("Cancel")',
+  'button[aria-label*="Close"]',
   'button[aria-label="Cancel"]',
-  
+  'button[aria-label*="Cancel"]',
+
   // Fallback patterns
   'input[type="button"][value="Leave"]',
   'input[type="submit"][value="Leave"]'
 ];
 
 // Google Meet people/participant panel selectors
+// IMPORTANT: These selectors must be valid native CSS selectors because they are used inside
+// document.querySelector within page.evaluate. Do not use Playwright-only selectors like
+// :has-text() or non-standard pseudo-classes like :contains().
 export const googlePeopleButtonSelectors: string[] = [
   'button[aria-label^="People"]',
   'button[aria-label*="people"]',
@@ -331,15 +329,11 @@ export const googlePeopleButtonSelectors: string[] = [
   'button[aria-label*="view people"]',
   'button[aria-label*="Meeting participants"]',
   'button[aria-label*="meeting participants"]',
-  'button:has(span:contains("People"))',
-  'button:has(span:contains("people"))',
-  'button:has(span:contains("Participants"))',
-  'button:has(span:contains("participants"))',
-  'button[data-mdc-dialog-action]',
-  'button[data-tooltip*="people"]',
-  'button[data-tooltip*="People"]',
-  'button[data-tooltip*="participants"]',
-  'button[data-tooltip*="Participants"]'
+  // The following rely on accessible tooltips/labels which are stable across Meet UIs
+  '[data-tooltip*="people"]',
+  '[data-tooltip*="People"]',
+  '[data-tooltip*="participants"]',
+  '[data-tooltip*="Participants"]'
 ];
 
 
