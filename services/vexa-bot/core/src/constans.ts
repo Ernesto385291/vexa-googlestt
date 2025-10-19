@@ -18,5 +18,6 @@ export const browserArgs = [
   "--ignore-certificate-errors",
   "--ignore-ssl-errors",
   "--ignore-certificate-errors-spki-list",
-  "--disable-site-isolation-trials"
+  "--disable-site-isolation-trials",
+  "--autoplay-policy=no-user-gesture-required"
 ];
