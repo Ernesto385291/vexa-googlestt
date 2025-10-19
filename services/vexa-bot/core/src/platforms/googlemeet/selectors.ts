@@ -284,36 +284,31 @@ export const googleParticipantIdSelectors: string[] = [
 
 // Google Meet comprehensive leave selectors (stateless - covers all scenarios)
 export const googleLeaveSelectors: string[] = [
-  // WORKING SELECTORS FIRST - Google Meet primary leave button
-  'button[aria-label="Leave call"]', // ✅ Primary Google Meet leave button
-  
-  // Alternative leave patterns
+  // Primary Google Meet leave button
+  'button[aria-label="Leave call"]',
+
+  // Alternative leave patterns (native CSS only)
   'button[aria-label*="Leave"]',
   'button[aria-label*="leave"]',
   '[role="toolbar"] button[aria-label*="Leave"]',
-  
+
   // End meeting alternatives
   'button[aria-label*="End meeting"]',
-  'button:has-text("End meeting")',
+  'button[aria-label*="end meeting"]',
   'button[aria-label*="Hang up"]',
-  'button:has-text("Hang up")',
-  
-  // Confirmation dialog buttons (secondary)
-  'button:has-text("Leave meeting")',
-  'button:has-text("Just leave the meeting")',
-  'button:has-text("Leave")',
-  
-  // Dialog-specific patterns
-  '[role="dialog"] button:has-text("Leave")',
-  '[role="dialog"] button:has-text("End meeting")',
-  '[role="alertdialog"] button:has-text("Leave")',
-  
+  'button[aria-label*="hang up"]',
+
+  // Dialog-specific patterns using aria-labels (text-only matches are not valid CSS)
+  '[role="dialog"] button[aria-label*="Leave"]',
+  '[role="dialog"] button[aria-label*="End"]',
+  '[role="alertdialog"] button[aria-label*="Leave"]',
+
   // Generic close/cancel patterns
-  'button:has-text("Close")',
   'button[aria-label="Close"]',
-  'button:has-text("Cancel")',
+  'button[aria-label*="Close"]',
   'button[aria-label="Cancel"]',
-  
+  'button[aria-label*="Cancel"]',
+
   // Fallback patterns
   'input[type="button"][value="Leave"]',
   'input[type="submit"][value="Leave"]'
